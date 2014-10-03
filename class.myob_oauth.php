@@ -3,8 +3,8 @@
 //
 //      Class MYOB API OAUTH
 //
-//           Sample Written by Keran McKenzie
-//           Date: Feb 2013
+//          Written by Grigor Farishyan
+//           Date: Oct 2014
 //
 //      Provided as sample oauth class for PHP & cURL OAUTH
 //
@@ -33,8 +33,6 @@ class myob_api_oauth {
   private $guid = '';
   public $error = array();
   private $is_post = FALSE;
-  private $debug = array();
-  
   const COMPANY_BASE_URL = 'https://api.myob.com/accountright/';
   public function __construct($params = array()) {
     if (!empty($params)) {
@@ -64,12 +62,19 @@ class myob_api_oauth {
     return $this->{$property};
   }
 
-
-  public function __call($name, $arguments) {
-     if (method_exists($this, $name)) {
-      return $this->{$name}($arguments);
+  /**
+   * @param $method - e.g. post, get, put, delete
+   * @param $name - function to call
+   * first name is a function result will be get_functionname
+   * @param $arguments - arguments as list
+   * @return mixed
+   */
+  public function call($method, $name, $arguments = array()) {
+     $method_name = $method . '_' .$name;
+     if (method_exists($this, $method_name)) {
+      return $this->{$method_name}($arguments);
      } else {
-       $this->__set('error', 'Killer');
+       $this->__set('error', 'method does not exists');
        return $this->__get('error');
      }
   }
@@ -98,7 +103,7 @@ class myob_api_oauth {
     return $this->response;
   }
 
-  private function contact_employee($args) {
+  private function get_contact_employee($args) {
     $this->build_auth_header();
 
   }
@@ -141,7 +146,7 @@ class myob_api_oauth {
     return $this->response;
   }
 
-  public function get_companyFiles() {
+  public function get_companyFiles($args = array()) {
     $header = $this->build_auth_header();
     $this->is_post = FALSE;
     $this->getURL(self::COMPANY_BASE_URL, array(), $header);
@@ -152,18 +157,30 @@ class myob_api_oauth {
   }
 
 
+  private function get_employee($args) {
+    $header = $this->build_auth_header();
+    $this->is_post = FALSE;
+    $url = self::COMPANY_BASE_URL . $args['guid'] . '/Contact/Employee';
+    if ($args['query']) {
+      $url .= '?' . http_build_query($args['query']);
+    }
 
+    $this->getURL($url, array(), $header);
+  }
 
   /***
    * public function to get curren user info
    * @params - $guid
    */
-  public function contact_personal($args) {
+  public function get_contact_personal($args) {
     $header = $this->build_auth_header();
     $this->is_post = FALSE;
-    
-    //$this->getURL(self::COMPANY_BASE_URL . $args['guid'] . '/CurrentUser', array(), $header); //?$filter=UID eq guid' . " e9250d9a-f17c-48b0-a666-f7ab12428515"
-    $this->getURL('https://api.myob.com/accountright/395cbf41-b746-4622-a5e7-b8fbcc2790b2/Contact/Personal/c2edc3af-d492-4526-83e6-b74a4a80fec7', array(), $header);
+    $url = self::COMPANY_BASE_URL . $args['guid'] . '/Contact/Personal';
+    if ($args['query']) {
+      $url .= '?' . http_build_query($args['query']);
+    }
+    $this->getURL($url, array(), $header);
+
     return $this->response;
   }
 
