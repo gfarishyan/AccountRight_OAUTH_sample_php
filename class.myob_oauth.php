@@ -33,6 +33,8 @@ class myob_api_oauth {
   private $guid = '';
   public $error = array();
   private $is_post = FALSE;
+  private $curl_request_method = 'get';
+
   const COMPANY_BASE_URL = 'https://api.myob.com/accountright/';
   public function __construct($params = array()) {
     if (!empty($params)) {
@@ -41,10 +43,6 @@ class myob_api_oauth {
       }
     }
   }
-  public function set_api_key($key) {
-    $this->api_key = $key;
-  }
-
 
   public function __set($property, $value) {
     if (property_exists($this, $property)) {
@@ -89,7 +87,7 @@ class myob_api_oauth {
       'grant_type' => 'authorization_code',
     );
 
-    $this->is_post = TRUE;
+    $this->curl_request_method = 'post';
     $this->getURL('https://secure.myob.com/oauth2/v1/authorize', $params, null);
 
     if (empty($this->error)) {
@@ -102,12 +100,6 @@ class myob_api_oauth {
     }
     return $this->response;
   }
-
-  private function get_contact_employee($args) {
-    $this->build_auth_header();
-
-  }
-
 
   private function build_auth_header() {
     $cftoken = '';
@@ -135,7 +127,7 @@ class myob_api_oauth {
       'refresh_token' =>	$this->__get('refresh_token'),
       'grant_type' =>	'refresh_token', // refresh_token -> refreshes your access token
     );
-    $this->is_post = TRUE;
+    $this->curl_request_method = 'post';
     $this->getURL('https://secure.myob.com/oauth2/v1/authorize', $params, null);
     if (empty($this->error)) {
       $this->__set('access_token', $this->response['access_token']);
@@ -146,45 +138,7 @@ class myob_api_oauth {
     return $this->response;
   }
 
-  public function get_companyFiles($args = array()) {
-    $header = $this->build_auth_header();
-    $this->is_post = FALSE;
-    $this->getURL(self::COMPANY_BASE_URL, array(), $header);
-    if (!empty($this->error)) {
-      return array();
-    }
-    return $this->response;
-  }
-
-
-  private function get_employee($args) {
-    $header = $this->build_auth_header();
-    $this->is_post = FALSE;
-    $url = self::COMPANY_BASE_URL . $args['guid'] . '/Contact/Employee';
-    if ($args['query']) {
-      $url .= '?' . http_build_query($args['query']);
-    }
-
-    $this->getURL($url, array(), $header);
-  }
-
-  /***
-   * public function to get curren user info
-   * @params - $guid
-   */
-  public function get_contact_personal($args) {
-    $header = $this->build_auth_header();
-    $this->is_post = FALSE;
-    $url = self::COMPANY_BASE_URL . $args['guid'] . '/Contact/Personal';
-    if ($args['query']) {
-      $url .= '?' . http_build_query($args['query']);
-    }
-    $this->getURL($url, array(), $header);
-
-    return $this->response;
-  }
-
-// private function for CURL
+  // private function for CURL
   private function getURL($url, $params = array(), $headers=null) {
     $this->error = array();
     $ch = curl_init($url);
@@ -192,16 +146,17 @@ class myob_api_oauth {
       curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     }
     $q = '';
-    if ($this->is_post) {
-      curl_setopt ($ch, CURLOPT_POST, true);
-      if (is_array($params)) {
-        $q = http_build_query($params);
-      } else {
-        $q = $params;
-      }
-      curl_setopt ($ch, CURLOPT_POSTFIELDS, $q);
-    }
 
+    /* build curl custom request */
+    $custom_request = strtoupper($this->curl_request_method);
+    curl_setopt ($ch, CURLOPT_CUSTOMREQUEST, $custom_request);
+    //curl_setopt ($ch, CURLOPT_POST_FIELDS, true);
+    if (is_array($params)) {
+      $q = http_build_query($params);
+    } else {
+      $q = $params;
+    }
+    curl_setopt ($ch, CURLOPT_POSTFIELDS, $q);
     curl_setopt($ch, CURLOPT_HEADER, FALSE);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -210,10 +165,10 @@ class myob_api_oauth {
 
     $info = curl_getinfo($ch);
     $this->debug[] = array(
-        'headers' => $headers,
-        'curl' => $info,
-        'params' => $q
-      );
+      'headers' => $headers,
+      'curl' => $info,
+      'params' => $q
+    );
     $error = curl_error($ch);
     if ($error) {
       $this->error['curl'][curl_errno($ch)] = $error;
@@ -230,4 +185,36 @@ class myob_api_oauth {
     $this->response = $r;
   }
 
+  /**
+   * @param $endpoint -
+   * @param array $args
+   */
+  public function get($endpoint, $args=array()) {
+    /**
+     * Build endpoint
+     *
+     */
+     $header = $this->build_auth_header();
+     $this->is_post = FALSE;
+     $this->curl_request_method = 'get';
+     $new_endpoint = '/' . str_replace('_', '/', $endpoint);
+     $url = self::COMPANY_BASE_URL . $this->__get('guid') . $new_endpoint;
+     if (!empty($args['query'])) {
+       $url .= '?' . http_build_query($args['query']);
+     }
+
+     $this->getURL($url, array(), $header);
+
+     return $this->response;
+  }
+
+  public function get_companyFiles($args = array()) {
+    $header = $this->build_auth_header();
+    $this->is_post = FALSE;
+    $this->getURL(self::COMPANY_BASE_URL, array(), $header);
+    if (!empty($this->error)) {
+      return array();
+    }
+    return $this->response;
+  }
 }
